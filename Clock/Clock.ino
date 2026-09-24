@@ -9,6 +9,7 @@
 #include <EEPROM.h>
 
 #define EEPROM_SIZE 1
+pcf85063a_datetime_t datatime = {};
 
 I2cMasterBus I2cMasterBus_(GPIO_NUM_7, GPIO_NUM_8, I2C_NUM_0);
 static uint8_t i2cPMICAddress;
@@ -17,6 +18,8 @@ static char LvglDataBuff[40] = { "" };
 int secBuf=78;
 
 unsigned long lastUpdate = 0;
+unsigned long lastUpdateRTC = 0;
+unsigned long lastUpdateLINE = 0;
 
 uint8_t back = 50;  // backlight
 int deb=0;
@@ -28,7 +31,7 @@ bool change=0;
 
 int linePos=-19;
 
-int smallLinePosY[10]={-98,-90,-82,-74,-66,-58,-50,-42}; //-36
+int smallLinePosY[8]={-98,-90,-82,-74,-66,-58,-50,-42}; //-36
 int smallLinePosX[8]={178,180,178,180,178,180,178,180};
 
 void setup() {
@@ -143,7 +146,14 @@ void setTimeScreen(lv_event_t * e)
 
 void loop() {
 
-   lv_obj_t *current = lv_scr_act();
+   lv_obj_t *current;
+
+if (bsp_lvgl_lock(10)) {
+    current = lv_scr_act();
+    bsp_lvgl_unlock();
+} else {
+    return;
+}
 
     if (current == ui_Screen1) {
 
@@ -158,10 +168,17 @@ void loop() {
         }
     }else deb=0;
 
+
+    if (millis() - lastUpdateLINE >= 6)
+    {
+      lastUpdateLINE=millis();
     linePos++;
-    if(linePos>460) linePos=-100;
+    if(linePos>400) linePos=-100;
     if(linePos<131)
+    if (bsp_lvgl_lock(10)) {
     lv_obj_set_pos(ui_lineRed, linePos, 44);
+    bsp_lvgl_unlock(); }
+    }
 
   /*
   int smallLinePosY[8]={-98,-90,-82,-74,-66,-58,-50,-42}; //-36
@@ -177,7 +194,8 @@ int smallLinePosX[8]={178,180,178,180,178,180,178,180};
       if(smallLinePosY[i]>-36)
       smallLinePosY[i]=-98;
     }
-
+    
+    if (bsp_lvgl_lock(10)) {
     lv_obj_set_pos(ui_line1, smallLinePosX[0], smallLinePosY[0]);
     lv_obj_set_pos(ui_line2, smallLinePosX[1], smallLinePosY[1]);
     lv_obj_set_pos(ui_line3, smallLinePosX[2], smallLinePosY[2]);
@@ -186,13 +204,18 @@ int smallLinePosX[8]={178,180,178,180,178,180,178,180};
     lv_obj_set_pos(ui_line6, smallLinePosX[5], smallLinePosY[5]);
     lv_obj_set_pos(ui_line7, smallLinePosX[6], smallLinePosY[6]);
     lv_obj_set_pos(ui_line8, smallLinePosX[7], smallLinePosY[7]);
+    bsp_lvgl_unlock(); }
     }
     
-    delay(3);
+   
 
-    pcf85063a_datetime_t datatime = {};
+   if (millis() - lastUpdateRTC >= 100)
+    {
+     lastUpdateRTC = millis();  
+    
     pcf85063a_get_time_date(&pcf85063, &datatime);
     pcf85063a_datetime_to_str(LvglDataBuff, datatime);
+    }
 
     if(datatime.sec!=secBuf)
     {
@@ -212,12 +235,15 @@ int smallLinePosX[8]={178,180,178,180,178,180,178,180};
     Serial.printf("rtc:%s\n", LvglDataBuff);
     secBuf=datatime.sec;
     String timeString = String(LvglDataBuff);
+     
+      if (bsp_lvgl_lock(10)) {
       lv_label_set_text(ui_dig1,timeString.substring(0,1).c_str());
       lv_label_set_text(ui_dig2,timeString.substring(1,2).c_str());
       lv_label_set_text(ui_dig3,timeString.substring(2,3).c_str());
       lv_label_set_text(ui_dig4,timeString.substring(3,4).c_str());
       lv_label_set_text(ui_dig5,timeString.substring(4,5).c_str());
       lv_label_set_text(ui_dig6,timeString.substring(5,6).c_str());
+      bsp_lvgl_unlock(); }
     }
   }
 
